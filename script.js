@@ -1,17 +1,30 @@
-let autocomplete;
+async function fetchCoordinates(location) {
+    try {
+        const response = await fetch(
+            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=pt&format=json`
+        );
 
-function initMap() {
-    const input = document.getElementById('location');
-    autocomplete = new google.maps.places.Autocomplete(input);
-
-    // Adiciona um listener para lidar com a seleção de um lugar
-    autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-        if (!place.geometry) {
-            alert("Por favor, selecione uma localização válida.");
-            return;
+        if (!response.ok) {
+            throw new Error('Erro ao buscar as coordenadas da localização');
         }
-    });
+
+        const data = await response.json();
+        const result = data.results?.[0];
+
+        if (!result) {
+            alert('Não foi possível encontrar a localização informada.');
+            return null;
+        }
+
+        return {
+            latitude: result.latitude,
+            longitude: result.longitude
+        };
+    } catch (error) {
+        console.error('Erro ao buscar coordenadas:', error);
+        alert('Erro ao buscar a localização. Por favor, tente novamente mais tarde.');
+        return null;
+    }
 }
 
 async function fetchClimateDataFromNASA(latitude, longitude, startDate, endDate) {
@@ -40,15 +53,22 @@ async function fetchData() {
         return;
     }
 
-    const place = autocomplete.getPlace();
-    if (!place || !place.geometry) {
-        alert("Por favor, selecione uma localização válida.");
+    if (startDate > endDate) {
+        alert('A data da colheita deve ser posterior à data do plantio.');
         return;
     }
-    const latitude = place.geometry.location.lat();
-    const longitude = place.geometry.location.lng();
 
-    const climateData = await fetchClimateDataFromNASA(latitude, longitude, startDate, endDate);
+    const coordinates = await fetchCoordinates(location);
+    if (!coordinates) {
+        return;
+    }
+
+    const climateData = await fetchClimateDataFromNASA(
+        coordinates.latitude,
+        coordinates.longitude,
+        startDate,
+        endDate
+    );
     if (!climateData) {
         return;
     }
@@ -111,5 +131,3 @@ function sanitizeInput(input) {
 function reloadPage() {
     window.location.reload();
 }
-
-window.onload = initMap;
